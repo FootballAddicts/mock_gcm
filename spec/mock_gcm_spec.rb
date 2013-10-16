@@ -24,13 +24,8 @@ describe MockGCM do
     }
   }
 
-  before do
-    mock_gcm.start
-  end
-  after do
-    mock_gcm.stop
-    sleep(0.1) until mock_gcm.stopped?
-  end
+  before { mock_gcm.start }
+  after { mock_gcm.stop; sleep(0.01) until mock_gcm.stopped? }
 
   it "should recieve and report on correct sends" do
     ([:all] + optional_keys).each do |included_key|
@@ -72,51 +67,60 @@ describe MockGCM do
     end
   end
 
-  it "should fail (401) given missing api key" do
-    resp = http_client.post("http://localhost:8282", valid_data.to_json, headers.reject { |k,v| k == 'Authorization' })
-    resp.status.should == 401
-    mock_gcm.received_messages.should be_empty
-  end
-
-  it "should fail (400) if incorrect data format is sent" do
-    # Removing data
-    (valid_data.keys - optional_keys).each do |key|
-      resp = http_client.post("http://localhost:8282", valid_data.reject { |k,v| k == key }.to_json, headers)
-      resp.status.should == 400
+  context 'missing api key' do
+    it "should fail (401)" do
+      resp = http_client.post("http://localhost:8282", valid_data.to_json, headers.reject { |k,v| k == 'Authorization' })
+      resp.status.should == 401
       mock_gcm.received_messages.should be_empty
     end
+  end
 
-    # Incorrect format
-    [
-      ['data', 1],
+  context "incorrect data" do
+
+    ['data', 'registration_ids'].each do |key|
+      it "should fail (400) when #{key} (required) is missing" do
+        resp = http_client.post("http://localhost:8282", valid_data.tap { |d| d.delete(key) }.to_json, headers)
+        resp.status.should == 400
+        mock_gcm.received_messages.should be_empty
+      end
+    end
+
+    [ ['data', 1],
       ['registration_ids', 1],
       ['registration_ids', [1]],
       ['time_to_live', "123"],
       ['collapse_key', 1],
-      ['delay_while_idle', "1"],
+      ['delay_while_idle', "1"]
     ].each do |key, value|
-      resp = http_client.post("http://localhost:8282", valid_data.dup.tap { |d| d[key] = value }.to_json, headers)
+      it "should fail (400) when #{key} = #{value} (incorrect type)" do
+        resp = http_client.post("http://localhost:8282", valid_data.tap { |d| d[key] = value }.to_json, headers)
+        resp.status.should == 400
+        mock_gcm.received_messages.should be_empty
+      end
+    end
+
+    it "should fail(400) when extra keys are present" do
+      resp = http_client.post("http://localhost:8282", valid_data.tap { |d| d['extra'] = 1 }.to_json, headers)
       resp.status.should == 400
       mock_gcm.received_messages.should be_empty
     end
 
-    # Adding data
-    data = valid_data.dup
-    data['extra_key'] = 'something'
-    resp = http_client.post("http://localhost:8282", data.to_json, headers)
-    resp.status.should == 400
-    mock_gcm.received_messages.should be_empty
+    it "should fail (400) if non-valid-json data is sent" do
+      resp = http_client.post("http://localhost:8282", "garbage%s" % valid_data.to_json, headers)
+      resp.status.should == 400
+      mock_gcm.received_messages.should be_empty
+    end
 
-    # Not JSON
-    resp = http_client.post("http://localhost:8282", "", headers)
-    resp.status.should == 400
-    mock_gcm.received_messages.should be_empty
   end
 
-  it "should fail (400) incorrect content-type" do
-    resp = http_client.post("http://localhost:8282", valid_data.to_json, headers.dup.tap { |h| h['Content-Type'] = 'text/plain' })
-    resp.status.should == 400
-    mock_gcm.received_messages.should be_empty
+  context "incorrect content-type header" do
+
+    it "should fail (400)" do
+      resp = http_client.post("http://localhost:8282", valid_data.to_json, headers.tap { |h| h['Content-Type'] = 'text/plain' })
+      resp.status.should == 400
+      mock_gcm.received_messages.should be_empty
+    end
+
   end
 
   # TODO: http://developer.android.com/google/gcm/http.html#error_codes
