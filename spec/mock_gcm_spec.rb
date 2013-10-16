@@ -30,7 +30,6 @@ describe MockGCM do
 
     # TODO: http://developer.android.com/google/gcm/http.html#error_codes
     pending "it should fail individual messages according to fail message specification"
-    pending "it should set canonical id for individual messages according to canonical id specification"
 
     optional_keys = ["collapse_key", "time_to_live", "delay_while_idle"]
     ([:all, :no] + optional_keys).each do |included_key|
@@ -68,6 +67,58 @@ describe MockGCM do
         end
         mock_gcm.received_messages.should == expected_report
       end
+    end
+
+    describe "#canonical_id" do
+
+      it "should return canonical registration_id for specified registration_ids in subsequent requests" do
+        canonicals = { "8" => "27", "42" => "19" }
+        canonicals.each_pair do |reg_id, can_id|
+          mock_gcm.canonical_id(reg_id, can_id)
+        end
+
+        2.times do
+          resp = http_client.post("http://localhost:8282", valid_data.to_json, headers)
+          resp.should be_ok
+
+          json    = JSON.parse(resp.body)
+          json.fetch('success').should == 6
+          json.fetch('failure').should == 0
+          json.fetch('canonical_ids').should == 2
+
+          result_for = lambda do |reg_id|
+            json.fetch('results').at(valid_data['registration_ids'].index(reg_id))
+          end
+
+          canonicals.each do |reg_id, can_id|
+            result = result_for.(reg_id)
+            result.should include('message_id')
+            result.should_not include('error')
+            result.fetch('registration_id').should == can_id
+          end
+
+          (valid_data['registration_ids'] - canonicals.keys).each do |reg_id|
+            result = result_for.(reg_id)
+            result.should include('message_id')
+            result.should_not include('error')
+            result.should_not include('registration_id')
+          end
+
+        end
+
+      end
+
+      it "should not affect unrelated requests" do
+        mock_gcm.canonical_id("not in valid data", "1")
+
+        resp = http_client.post("http://localhost:8282", valid_data.to_json, headers)
+        resp.should be_ok
+
+        json = JSON.parse(resp.body)
+        json.fetch('canonical_ids').should == 0
+        json.fetch('results').each { |hash| hash.should_not include('registration_id') }
+      end
+
     end
 
     describe "#fail_next_request" do

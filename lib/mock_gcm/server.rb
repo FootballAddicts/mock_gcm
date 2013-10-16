@@ -13,6 +13,7 @@ module MockGCM
       @api_key = api_key
 
       @received_messages = []
+      @canonicals        = {}
       @mutex = Mutex.new
 
       @server = HttpServer.new(self, port, DEFAULT_HOST, 1, File.open("/dev/null"), false, false)
@@ -27,6 +28,10 @@ module MockGCM
 
     def fail_next_request(errno)
       @mutex.synchronize { @fail_next_request = Integer(errno) }
+    end
+
+    def canonical_id(reg_id, canonical_reg_id)
+      @mutex.synchronize { @canonicals[reg_id] = canonical_reg_id }
     end
 
     # Message log
@@ -103,13 +108,25 @@ module MockGCM
     def handle_req_data(req_data)
       req_json = JSON.parse(req_data)
 
+      success, failure, canonical_ids, results = 0, 0, 0, []
+
       reg_ids = req_json['registration_ids']
       reg_ids.each do |reg_id|
+        results << {}.tap do |result|
+          if canonical_id = @mutex.synchronize { @canonicals[reg_id] }
+            result['registration_id'] = canonical_id
+            canonical_ids += 1
+          end
+
+          result['message_id'] = rand(100_000_000)
+          success += 1
+        end
+
         add_received(reg_id, req_json['collapse_key'], req_json['time_to_live'],
                              req_json['delay_while_idle'], req_json.fetch('data'))
       end
 
-      return reg_ids.size, 0, 0, reg_ids.map { {'message_id' => rand(100_000_000) } }
+      return success, failure, canonical_ids, results
     end
 
     # HttpServer handlers
