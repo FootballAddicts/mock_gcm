@@ -122,7 +122,7 @@ describe MockGCM do
       ['collapse_key', 1],
       ['delay_while_idle', "1"]
     ].each do |key, value|
-      it "should fail (400) when #{key} = #{value} (incorrect type)" do
+      it "should fail (400) when #{key} = #{value.inspect} (incorrect type)" do
         resp = http_client.post("http://localhost:8282", valid_data.tap { |d| d[key] = value }.to_json, headers)
         resp.status.should == 400
         mock_gcm.received_messages.should be_empty
