@@ -41,17 +41,19 @@ module MockGCM
 
     # Message log
 
-    attr_reader :received_messages
+    def received_messages
+      @mutex.synchronize { @received_messages.dup }
+    end
 
     def add_received(reg_id, collapse_key, time_to_live, delay_while_idle, data)
       hsh = {
-        'registration_id'  => reg_id,
-        'collapse_key'     => collapse_key,
-        'time_to_live'     => time_to_live,
-        'delay_while_idle' => delay_while_idle,
-        'data'             => data,
-      }
-      @mutex.synchronize { received_messages << hsh }
+        'registration_id'  => reg_id.freeze,
+        'collapse_key'     => collapse_key.freeze,
+        'time_to_live'     => time_to_live.freeze,
+        'delay_while_idle' => delay_while_idle.freeze,
+        'data'             => data.freeze,
+      }.freeze
+      @mutex.synchronize { @received_messages << hsh }
     end
 
     # Check stuff
