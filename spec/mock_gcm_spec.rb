@@ -213,6 +213,12 @@ describe MockGCM do
 
   context "incorrect data" do
 
+    it "should fail (400) given more than 1000 registration_ids" do
+      resp = http_client.post(mock_gcm_url, valid_data.tap { |d| d['registration_ids'] = 1.upto(1001).map(&:to_s) }.to_json, headers)
+      resp.status.should == 400
+      mock_gcm.received_messages.should be_empty
+    end
+
     ['data', 'registration_ids'].each do |key|
       it "should fail (400) when #{key} (required) is missing" do
         resp = http_client.post(mock_gcm_url, valid_data.tap { |d| d.delete(key) }.to_json, headers)

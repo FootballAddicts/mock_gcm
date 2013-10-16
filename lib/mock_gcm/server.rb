@@ -98,7 +98,7 @@ module MockGCM
 
       # Required
       fail.call unless json["data"].is_a?(Hash)
-      fail.call unless json["registration_ids"].is_a?(Array) && json["registration_ids"].all? { |reg_id| reg_id.is_a?(String) }
+      fail.call unless json["registration_ids"].is_a?(Array) && json["registration_ids"].all? { |reg_id| reg_id.is_a?(String) } && json["registration_ids"].size <= 1000
       # Optional
       fail.call unless json.fetch("collapse_key", "").is_a?(String)
       fail.call unless json.fetch("time_to_live", 1).is_a?(Integer)
