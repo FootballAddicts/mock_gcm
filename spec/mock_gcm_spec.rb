@@ -10,7 +10,6 @@ describe MockGCM do
     { "Content-Type"  => "application/json",
       "Authorization" => "key=#{api_key}" }
   }
-  let(:optional_keys) { ['collapse_key', 'time_to_live', 'delay_while_idle'] }
   let(:valid_data) {
     {
       "collapse_key"     => "score_update",
@@ -27,44 +26,52 @@ describe MockGCM do
   before { mock_gcm.start }
   after { mock_gcm.stop; sleep(0.01) until mock_gcm.stopped? }
 
-  it "should recieve and report on correct sends" do
-    ([:all] + optional_keys).each do |included_key|
-      if included_key == :all
-        data = valid_data
-      else
-        data = valid_data.reject { |k,v| included_key != k && optional_keys.include?(k) }
+  context 'correct data' do
+
+    # TODO: http://developer.android.com/google/gcm/http.html#error_codes
+    pending "it should fail individual messages according to fail message specification"
+    pending "it should set canonical id for individual messages according to canonical id pecification"
+    pending "it should fail (500) if mock server error trigger is set"
+
+    optional_keys = ["collapse_key", "time_to_live", "delay_while_idle"]
+    ([:all, :no] + optional_keys).each do |included_key|
+      it "should accept and report messages including #{included_key} optional key(s)" do
+        unless included_key == :all
+          optional_keys.each { |key| valid_data.delete(key) unless key == included_key }
+        end
+
+        resp = http_client.post("http://localhost:8282", valid_data.to_json, headers)
+        resp.should be_ok
+        resp.headers.fetch('Content-type').should == 'application/json'
+
+        json = JSON.parse(resp.body)
+
+        json.should include('multicast_id')
+        json.fetch('success').should == 6
+        json.fetch('failure').should == 0
+        json.fetch('canonical_ids').should == 0
+
+
+        results = json.fetch('results')
+        results.size.should == 6
+        results.each do |res|
+          res.should include('message_id')
+          res.should_not include('registration_id')
+          res.should_not include('error')
+        end
+
+        expected_report = valid_data['registration_ids'].map do |registration_id|
+          { "collapse_key"     => valid_data["collapse_key"],
+            "time_to_live"     => valid_data["time_to_live"],
+            "delay_while_idle" => valid_data['delay_while_idle'],
+            "data"             => valid_data["data"],
+            "registration_id" => registration_id }
+        end
+        mock_gcm.received_messages.should == expected_report
+        mock_gcm.clear
       end
-
-      resp = http_client.post("http://localhost:8282", data.to_json, headers)
-      resp.should be_ok
-      resp.headers.fetch('Content-type').should == 'application/json'
-
-      json = JSON.parse(resp.body)
-
-      json.should include('multicast_id')
-      json.fetch('success').should == 6
-      json.fetch('failure').should == 0
-      json.fetch('canonical_ids').should == 0
-
-
-      results = json.fetch('results')
-      results.size.should == 6
-      results.each do |res|
-        res.should include('message_id')
-        res.should_not include('registration_id')
-        res.should_not include('error')
-      end
-
-      expected_report = valid_data['registration_ids'].map do |registration_id|
-        { "collapse_key"     => data["collapse_key"],
-          "time_to_live"     => data["time_to_live"],
-          "delay_while_idle" => data['delay_while_idle'],
-          "data"             => data["data"],
-          "registration_id" => registration_id }
-      end
-      mock_gcm.received_messages.should == expected_report
-      mock_gcm.clear
     end
+
   end
 
   context 'missing api key' do
@@ -122,10 +129,5 @@ describe MockGCM do
     end
 
   end
-
-  # TODO: http://developer.android.com/google/gcm/http.html#error_codes
-  pending "it should fail individual messages according to fail message specification"
-  pending "it should set canonical id for individual messages according to canonical id pecification"
-  pending "it should fail (500) if mock server error trigger is set"
 
 end
