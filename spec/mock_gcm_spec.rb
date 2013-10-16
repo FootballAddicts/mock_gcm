@@ -48,7 +48,6 @@ describe MockGCM do
         json.fetch('failure').should == 0
         json.fetch('canonical_ids').should == 0
 
-
         results = json.fetch('results')
         results.size.should == 6
         results.each do |res|
