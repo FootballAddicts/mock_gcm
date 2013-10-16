@@ -68,7 +68,6 @@ describe MockGCM do
             "registration_id" => registration_id }
         end
         mock_gcm.received_messages.should == expected_report
-        mock_gcm.clear
       end
     end
 

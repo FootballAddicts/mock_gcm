@@ -36,10 +36,6 @@ module MockGCM
       @mutex.synchronize { received_messages << hsh }
     end
 
-    def clear
-      @mutex.synchronize { received_messages.clear }
-    end
-
     # Check stuff
 
     def check_authorization_header(request, response, req_data)
