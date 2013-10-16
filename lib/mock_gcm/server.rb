@@ -16,10 +16,18 @@ module MockGCM
       @mutex = Mutex.new
 
       @server = HttpServer.new(self, port, DEFAULT_HOST, 1, File.open("/dev/null"), false, false)
+
+      # Configurable error behaviour
+      @fail_next_request = nil
     end
 
     # Manage server state
+
     def_delegators :@server, :start, :stop, :stopped?
+
+    def fail_next_request(errno)
+      @mutex.synchronize { @fail_next_request = Integer(errno) }
+    end
 
     # Message log
 
@@ -37,6 +45,19 @@ module MockGCM
     end
 
     # Check stuff
+
+    def check_fail_next_request(request, response, req_data)
+      fail_next_request = @mutex.synchronize do
+        @fail_next_request.tap { @fail_next_request = nil }
+      end
+
+      if fail_next_request
+        response.status = fail_next_request
+        false
+      else
+        true
+      end
+    end
 
     def check_authorization_header(request, response, req_data)
       if request.header['Authorization'] == "key=#{@api_key}"
@@ -100,6 +121,7 @@ module MockGCM
     def request_handler(request, response)
       req_data = request.data.read(request.content_length)
 
+      return unless check_fail_next_request(request, response, req_data)
       return unless check_authorization_header(request, response, req_data)
       return unless check_content_type(request, response, req_data)
       return unless check_data_format(request, response, req_data)

@@ -30,8 +30,7 @@ describe MockGCM do
 
     # TODO: http://developer.android.com/google/gcm/http.html#error_codes
     pending "it should fail individual messages according to fail message specification"
-    pending "it should set canonical id for individual messages according to canonical id pecification"
-    pending "it should fail (500) if mock server error trigger is set"
+    pending "it should set canonical id for individual messages according to canonical id specification"
 
     optional_keys = ["collapse_key", "time_to_live", "delay_while_idle"]
     ([:all, :no] + optional_keys).each do |included_key|
@@ -70,6 +69,31 @@ describe MockGCM do
         mock_gcm.received_messages.should == expected_report
       end
     end
+
+    describe "#fail_next_request" do
+
+      5.times do
+        errno = 500 + rand(100)
+        it "should fail (#{errno}) if requested" do
+          mock_gcm.fail_next_request(errno)
+          resp = http_client.post("http://localhost:8282", valid_data.to_json, headers)
+          resp.status.should == errno
+          mock_gcm.received_messages.should be_empty
+        end
+      end
+
+      it "should clear after one failure" do
+        mock_gcm.fail_next_request(500)
+        resp = http_client.post("http://localhost:8282", valid_data.to_json, headers)
+        resp.status.should == 500
+        mock_gcm.received_messages.should be_empty
+
+        resp = http_client.post("http://localhost:8282", valid_data.to_json, headers)
+        resp.should be_ok
+      end
+
+    end
+
 
   end
 
