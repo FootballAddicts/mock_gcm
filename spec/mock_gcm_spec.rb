@@ -4,7 +4,9 @@ require 'httpclient'
 
 describe MockGCM do
   let(:api_key)     { "secrets" }
-  let(:mock_gcm)    { MockGCM.new(api_key, 8282) }
+  let(:mock_gcm_port) { 8282 }
+  let(:mock_gcm)    { MockGCM.new(api_key, mock_gcm_port) }
+  let(:mock_gcm_url) { "http://localhost:#{mock_gcm_port}" }
   let(:http_client) { HTTPClient.new }
   let(:headers) {
     { "Content-Type"  => "application/json",
@@ -35,7 +37,7 @@ describe MockGCM do
           optional_keys.each { |key| valid_data.delete(key) unless key == included_key }
         end
 
-        resp = http_client.post("http://localhost:8282", valid_data.to_json, headers)
+        resp = http_client.post(mock_gcm_url, valid_data.to_json, headers)
         resp.should be_ok
         resp.headers.fetch('Content-type').should == 'application/json'
 
@@ -81,7 +83,7 @@ describe MockGCM do
         end
 
         2.times do
-          resp = http_client.post("http://localhost:8282", valid_data.to_json, headers)
+          resp = http_client.post(mock_gcm_url, valid_data.to_json, headers)
           resp.should be_ok
 
           json    = JSON.parse(resp.body)
@@ -114,7 +116,7 @@ describe MockGCM do
       it "should not affect unrelated requests" do
         mock_gcm.error("not in valid data", "Unavailable")
 
-        resp = http_client.post("http://localhost:8282", valid_data.to_json, headers)
+        resp = http_client.post(mock_gcm_url, valid_data.to_json, headers)
         resp.should be_ok
 
         json = JSON.parse(resp.body)
@@ -132,7 +134,7 @@ describe MockGCM do
         end
 
         2.times do
-          resp = http_client.post("http://localhost:8282", valid_data.to_json, headers)
+          resp = http_client.post(mock_gcm_url, valid_data.to_json, headers)
           resp.should be_ok
 
           json    = JSON.parse(resp.body)
@@ -165,7 +167,7 @@ describe MockGCM do
       it "should not affect unrelated requests" do
         mock_gcm.canonical_id("not in valid data", "1")
 
-        resp = http_client.post("http://localhost:8282", valid_data.to_json, headers)
+        resp = http_client.post(mock_gcm_url, valid_data.to_json, headers)
         resp.should be_ok
 
         json = JSON.parse(resp.body)
@@ -181,7 +183,7 @@ describe MockGCM do
         errno = 500 + rand(100)
         it "should fail (#{errno}) if requested" do
           mock_gcm.fail_next_request(errno)
-          resp = http_client.post("http://localhost:8282", valid_data.to_json, headers)
+          resp = http_client.post(mock_gcm_url, valid_data.to_json, headers)
           resp.status.should == errno
           mock_gcm.received_messages.should be_empty
         end
@@ -189,11 +191,11 @@ describe MockGCM do
 
       it "should clear after one failure" do
         mock_gcm.fail_next_request(500)
-        resp = http_client.post("http://localhost:8282", valid_data.to_json, headers)
+        resp = http_client.post(mock_gcm_url, valid_data.to_json, headers)
         resp.status.should == 500
         mock_gcm.received_messages.should be_empty
 
-        resp = http_client.post("http://localhost:8282", valid_data.to_json, headers)
+        resp = http_client.post(mock_gcm_url, valid_data.to_json, headers)
         resp.should be_ok
       end
 
@@ -204,7 +206,7 @@ describe MockGCM do
 
   context 'missing api key' do
     it "should fail (401)" do
-      resp = http_client.post("http://localhost:8282", valid_data.to_json, headers.reject { |k,v| k == 'Authorization' })
+      resp = http_client.post(mock_gcm_url, valid_data.to_json, headers.reject { |k,v| k == 'Authorization' })
       resp.status.should == 401
       mock_gcm.received_messages.should be_empty
     end
@@ -214,7 +216,7 @@ describe MockGCM do
 
     ['data', 'registration_ids'].each do |key|
       it "should fail (400) when #{key} (required) is missing" do
-        resp = http_client.post("http://localhost:8282", valid_data.tap { |d| d.delete(key) }.to_json, headers)
+        resp = http_client.post(mock_gcm_url, valid_data.tap { |d| d.delete(key) }.to_json, headers)
         resp.status.should == 400
         mock_gcm.received_messages.should be_empty
       end
@@ -228,20 +230,20 @@ describe MockGCM do
       ['delay_while_idle', "1"]
     ].each do |key, value|
       it "should fail (400) when #{key} = #{value.inspect} (incorrect type)" do
-        resp = http_client.post("http://localhost:8282", valid_data.tap { |d| d[key] = value }.to_json, headers)
+        resp = http_client.post(mock_gcm_url, valid_data.tap { |d| d[key] = value }.to_json, headers)
         resp.status.should == 400
         mock_gcm.received_messages.should be_empty
       end
     end
 
     it "should fail(400) when extra keys are present" do
-      resp = http_client.post("http://localhost:8282", valid_data.tap { |d| d['extra'] = 1 }.to_json, headers)
+      resp = http_client.post(mock_gcm_url, valid_data.tap { |d| d['extra'] = 1 }.to_json, headers)
       resp.status.should == 400
       mock_gcm.received_messages.should be_empty
     end
 
     it "should fail (400) if non-valid-json data is sent" do
-      resp = http_client.post("http://localhost:8282", "garbage%s" % valid_data.to_json, headers)
+      resp = http_client.post(mock_gcm_url, "garbage%s" % valid_data.to_json, headers)
       resp.status.should == 400
       mock_gcm.received_messages.should be_empty
     end
@@ -251,7 +253,7 @@ describe MockGCM do
   context "incorrect content-type header" do
 
     it "should fail (400)" do
-      resp = http_client.post("http://localhost:8282", valid_data.to_json, headers.tap { |h| h['Content-Type'] = 'text/plain' })
+      resp = http_client.post(mock_gcm_url, valid_data.to_json, headers.tap { |h| h['Content-Type'] = 'text/plain' })
       resp.status.should == 400
       mock_gcm.received_messages.should be_empty
     end
