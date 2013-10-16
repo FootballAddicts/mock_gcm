@@ -14,6 +14,7 @@ module MockGCM
 
       @received_messages = []
       @canonicals        = {}
+      @errors            = {}
       @mutex = Mutex.new
 
       @server = HttpServer.new(self, port, DEFAULT_HOST, 1, File.open("/dev/null"), false, false)
@@ -32,6 +33,10 @@ module MockGCM
 
     def canonical_id(reg_id, canonical_reg_id)
       @mutex.synchronize { @canonicals[reg_id] = canonical_reg_id }
+    end
+
+    def error(reg_id, error)
+      @mutex.synchronize { @errors[reg_id] = error }
     end
 
     # Message log
@@ -113,6 +118,12 @@ module MockGCM
       reg_ids = req_json['registration_ids']
       reg_ids.each do |reg_id|
         results << {}.tap do |result|
+          if error = @mutex.synchronize { @errors[reg_id] }
+            result['error'] = error
+            failure += 1
+            next
+          end
+
           if canonical_id = @mutex.synchronize { @canonicals[reg_id] }
             result['registration_id'] = canonical_id
             canonical_ids += 1

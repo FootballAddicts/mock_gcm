@@ -28,9 +28,6 @@ describe MockGCM do
 
   context 'correct data' do
 
-    # TODO: http://developer.android.com/google/gcm/http.html#error_codes
-    pending "it should fail individual messages according to fail message specification"
-
     optional_keys = ["collapse_key", "time_to_live", "delay_while_idle"]
     ([:all, :no] + optional_keys).each do |included_key|
       it "should accept and report messages including #{included_key} optional key(s)" do
@@ -66,6 +63,63 @@ describe MockGCM do
             "registration_id" => registration_id }
         end
         mock_gcm.received_messages.should == expected_report
+      end
+    end
+
+    describe "#error" do
+      it "should fail sends to specified registration_id in subsequent requests" do
+        errors = %w{
+            MissingRegistration InvalidRegistration MismatchSenderId NotRegistered MessageTooBig
+            InvalidDataKey InvalidTtl Unavailable InternalServerError InvalidPackageName
+        }
+        fails = {
+          "42" => errors.sample,
+          "16" => errors.sample
+        }
+        fails.each_pair do |reg_id, error|
+          mock_gcm.error(reg_id, error)
+        end
+
+        2.times do
+          resp = http_client.post("http://localhost:8282", valid_data.to_json, headers)
+          resp.should be_ok
+
+          json    = JSON.parse(resp.body)
+          json.fetch('success').should == 4
+          json.fetch('failure').should == 2
+          json.fetch('canonical_ids').should == 0
+
+          result_for = lambda do |reg_id|
+            json.fetch('results').at(valid_data['registration_ids'].index(reg_id))
+          end
+
+          fails.each_pair do |reg_id, error|
+            result = result_for.(reg_id)
+            result.should_not include('message_id')
+            result.fetch('error').should == error
+            result.should_not include('registration_id')
+          end
+
+          (valid_data['registration_ids'] - fails.keys).each do |reg_id|
+            result = result_for.(reg_id)
+            result.should include('message_id')
+            result.should_not include('error')
+            result.should_not include('registration_id')
+          end
+
+        end
+
+      end
+
+      it "should not affect unrelated requests" do
+        mock_gcm.error("not in valid data", "Unavailable")
+
+        resp = http_client.post("http://localhost:8282", valid_data.to_json, headers)
+        resp.should be_ok
+
+        json = JSON.parse(resp.body)
+        json.fetch('failure').should == 0
+        json.fetch('results').each { |hash| hash.should_not include('error') }
       end
     end
 
