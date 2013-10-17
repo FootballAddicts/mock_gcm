@@ -81,7 +81,7 @@ describe MockGCM do
           mock_gcm.error(reg_id, error)
         end
 
-        2.times do
+        (1+rand(100)).times do
           resp = http_client.post(mock_gcm_url, valid_data.to_json, headers)
           resp.should be_ok
 
@@ -110,6 +110,57 @@ describe MockGCM do
 
         end
 
+      end
+
+      it "should limit error reporting to :times times if specified" do
+        cnt = 1 + rand(100)
+
+        errors = %w{
+            MissingRegistration InvalidRegistration MismatchSenderId NotRegistered MessageTooBig
+            InvalidDataKey InvalidTtl Unavailable InternalServerError InvalidPackageName
+        }
+        fails = {
+          "42" => errors.sample,
+          "16" => errors.sample
+        }
+        fails.each_pair do |reg_id, error|
+          mock_gcm.error(reg_id, error, :times => cnt)
+        end
+
+        cnt.times do
+          resp = http_client.post(mock_gcm_url, valid_data.to_json, headers)
+          resp.should be_ok
+
+          json    = JSON.parse(resp.body)
+          json.fetch('success').should == 4
+          json.fetch('failure').should == 2
+          json.fetch('canonical_ids').should == 0
+
+          result_for = lambda do |reg_id|
+            json.fetch('results').at(valid_data['registration_ids'].index(reg_id))
+          end
+
+          fails.each_pair do |reg_id, error|
+            result = result_for.(reg_id)
+            result.should_not include('message_id')
+            result.fetch('error').should == error
+            result.should_not include('registration_id')
+          end
+
+          (valid_data['registration_ids'] - fails.keys).each do |reg_id|
+            result = result_for.(reg_id)
+            result.should include('message_id')
+            result.should_not include('error')
+            result.should_not include('registration_id')
+          end
+        end
+
+        resp = http_client.post(mock_gcm_url, valid_data.to_json, headers)
+        resp.should be_ok
+
+        json    = JSON.parse(resp.body)
+        json.fetch('success').should == 6
+        json.fetch('failure').should == 0
       end
 
       it "should not affect unrelated requests" do

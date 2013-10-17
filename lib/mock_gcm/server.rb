@@ -35,8 +35,20 @@ module MockGCM
       @mutex.synchronize { @canonicals[reg_id] = canonical_reg_id }
     end
 
-    def error(reg_id, error)
-      @mutex.synchronize { @errors[reg_id] = error }
+    def error(reg_id, error, options = {})
+      @mutex.synchronize { @errors[reg_id] = { :error => error, :times => options[:times] || -1 } }
+    end
+
+    # Check server state from request thread
+
+    def error_for(reg_id)
+      @mutex.synchronize {
+        return unless hsh = @errors[reg_id]
+        return unless hsh[:times] != 0
+
+        hsh[:times] -= 1 if hsh[:times] >= 1
+        hsh[:error]
+      }
     end
 
     # Message log
@@ -120,7 +132,7 @@ module MockGCM
       reg_ids = req_json['registration_ids']
       reg_ids.each do |reg_id|
         results << {}.tap do |result|
-          if error = @mutex.synchronize { @errors[reg_id] }
+          if error = error_for(reg_id)
             result['error'] = error
             failure += 1
             next
