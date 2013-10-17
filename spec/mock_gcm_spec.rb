@@ -29,7 +29,6 @@ describe MockGCM do
   after { mock_gcm.stop; sleep(0.01) until mock_gcm.stopped? }
 
   context 'correct data' do
-
     optional_keys = ["collapse_key", "time_to_live", "delay_while_idle"]
     ([:all, :no] + optional_keys).each do |included_key|
       it "should accept and report messages including #{included_key} optional key(s)" do
@@ -69,6 +68,8 @@ describe MockGCM do
 
     describe "#mock_error" do
       it "should fail sends to specified registration_id in subsequent requests" do
+        cnt = 1+rand(100)
+
         errors = %w{
             MissingRegistration InvalidRegistration MismatchSenderId NotRegistered MessageTooBig
             InvalidDataKey InvalidTtl Unavailable InternalServerError InvalidPackageName
@@ -81,7 +82,7 @@ describe MockGCM do
           mock_gcm.mock_error(reg_id, error)
         end
 
-        (1+rand(100)).times do
+        cnt.times do
           resp = http_client.post(mock_gcm_url, valid_data.to_json, headers)
           resp.should be_ok
 
@@ -107,9 +108,9 @@ describe MockGCM do
             result.should_not include('error')
             result.should_not include('registration_id')
           end
-
         end
 
+        mock_gcm.received_messages.size.should == cnt * 4
       end
 
       it "should limit error reporting to :times times if specified" do
@@ -161,6 +162,8 @@ describe MockGCM do
         json    = JSON.parse(resp.body)
         json.fetch('success').should == 6
         json.fetch('failure').should == 0
+
+        mock_gcm.received_messages.size.should == 6 + cnt * 4
       end
 
       it "should not affect unrelated requests" do
@@ -172,18 +175,23 @@ describe MockGCM do
         json = JSON.parse(resp.body)
         json.fetch('failure').should == 0
         json.fetch('results').each { |hash| hash.should_not include('error') }
+
+        mock_gcm.received_messages.size.should == 6
       end
+
     end
 
     describe "#mock_canonical_id" do
 
       it "should return canonical registration_id for specified registration_ids in subsequent requests" do
+        cnt = 1 + rand(100)
+
         canonicals = { "8" => "27", "42" => "19" }
         canonicals.each_pair do |reg_id, can_id|
           mock_gcm.mock_canonical_id(reg_id, can_id)
         end
 
-        2.times do
+        cnt.times do
           resp = http_client.post(mock_gcm_url, valid_data.to_json, headers)
           resp.should be_ok
 
@@ -209,9 +217,9 @@ describe MockGCM do
             result.should_not include('error')
             result.should_not include('registration_id')
           end
-
         end
 
+        mock_gcm.received_messages.size.should == cnt * 6
       end
 
       it "should not affect unrelated requests" do
@@ -223,6 +231,8 @@ describe MockGCM do
         json = JSON.parse(resp.body)
         json.fetch('canonical_ids').should == 0
         json.fetch('results').each { |hash| hash.should_not include('registration_id') }
+
+        mock_gcm.received_messages.size.should == 6
       end
 
     end
@@ -250,16 +260,16 @@ describe MockGCM do
       end
 
     end
-
-
   end
 
   context 'missing api key' do
+
     it "should fail (401)" do
       resp = http_client.post(mock_gcm_url, valid_data.to_json, headers.reject { |k,v| k == 'Authorization' })
       resp.status.should == 401
       mock_gcm.received_messages.should be_empty
     end
+
   end
 
   context "incorrect data" do

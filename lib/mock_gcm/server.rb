@@ -149,10 +149,10 @@ module MockGCM
 
           result['message_id'] = rand(100_000_000)
           success += 1
-        end
 
-        add_received(reg_id, req_json['collapse_key'], req_json['time_to_live'],
-                             req_json['delay_while_idle'], req_json.fetch('data'))
+          add_received(reg_id, req_json['collapse_key'], req_json['time_to_live'],
+                       req_json['delay_while_idle'], req_json.fetch('data'))
+        end
       end
 
       return success, failure, canonical_ids, results
