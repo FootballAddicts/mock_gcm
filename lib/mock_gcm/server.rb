@@ -13,14 +13,14 @@ module MockGCM
       @api_key = api_key
 
       @received_messages = []
-      @canonicals        = {}
-      @errors            = {}
       @mutex = Mutex.new
 
       @server = HttpServer.new(self, port, DEFAULT_HOST, 1, File.open("/dev/null"), false, false)
 
       # Configurable error behaviour
       @fail_next_request = nil
+      @canonicals        = {}
+      @errors            = {}
     end
 
     # Manage server state
