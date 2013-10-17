@@ -51,6 +51,10 @@ module MockGCM
       }
     end
 
+    def canonical_id_for(reg_id)
+      @mutex.synchronize { @canonicals[reg_id] }
+    end
+
     # Message log
 
     def received_messages
@@ -138,7 +142,7 @@ module MockGCM
             next
           end
 
-          if canonical_id = @mutex.synchronize { @canonicals[reg_id] }
+          if canonical_id = canonical_id_for(reg_id)
             result['registration_id'] = canonical_id
             canonical_ids += 1
           end
