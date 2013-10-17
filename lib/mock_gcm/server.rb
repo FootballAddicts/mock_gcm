@@ -18,7 +18,7 @@ module MockGCM
       @server = HttpServer.new(self, port, DEFAULT_HOST, 1, File.open("/dev/null"), false, false)
 
       # Configurable error behaviour
-      @fail_next_request = nil
+      @next_request_errno = nil
       @canonicals        = {}
       @errors            = {}
     end
@@ -28,7 +28,7 @@ module MockGCM
     def_delegators :@server, :start, :stop, :stopped?
 
     def mock_next_request_failure(errno)
-      @mutex.synchronize { @fail_next_request = Integer(errno) }
+      @mutex.synchronize { @next_request_errno = Integer(errno) }
     end
 
     def mock_canonical_id(reg_id, canonical_reg_id)
@@ -75,12 +75,12 @@ module MockGCM
     # Check stuff
 
     def check_fail_next_request(request, response, req_data)
-      fail_next_request = @mutex.synchronize do
-        @fail_next_request.tap { @fail_next_request = nil }
+      next_request_errno = @mutex.synchronize do
+        @next_request_errno.tap { @next_request_errno = nil }
       end
 
-      if fail_next_request
-        response.status = fail_next_request
+      if next_request_errno
+        response.status = next_request_errno
         false
       else
         true
