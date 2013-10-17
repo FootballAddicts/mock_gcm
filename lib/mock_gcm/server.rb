@@ -27,15 +27,15 @@ module MockGCM
 
     def_delegators :@server, :start, :stop, :stopped?
 
-    def fail_next_request(errno)
+    def mock_next_request_failure(errno)
       @mutex.synchronize { @fail_next_request = Integer(errno) }
     end
 
-    def canonical_id(reg_id, canonical_reg_id)
+    def mock_canonical_id(reg_id, canonical_reg_id)
       @mutex.synchronize { @canonicals[reg_id] = canonical_reg_id }
     end
 
-    def error(reg_id, error, options = {})
+    def mock_error(reg_id, error, options = {})
       @mutex.synchronize { @errors[reg_id] = { :error => error, :times => options[:times] || -1 } }
     end
 

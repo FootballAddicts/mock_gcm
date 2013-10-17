@@ -67,7 +67,7 @@ describe MockGCM do
       end
     end
 
-    describe "#error" do
+    describe "#mock_error" do
       it "should fail sends to specified registration_id in subsequent requests" do
         errors = %w{
             MissingRegistration InvalidRegistration MismatchSenderId NotRegistered MessageTooBig
@@ -78,7 +78,7 @@ describe MockGCM do
           "16" => errors.sample
         }
         fails.each_pair do |reg_id, error|
-          mock_gcm.error(reg_id, error)
+          mock_gcm.mock_error(reg_id, error)
         end
 
         (1+rand(100)).times do
@@ -124,7 +124,7 @@ describe MockGCM do
           "16" => errors.sample
         }
         fails.each_pair do |reg_id, error|
-          mock_gcm.error(reg_id, error, :times => cnt)
+          mock_gcm.mock_error(reg_id, error, :times => cnt)
         end
 
         cnt.times do
@@ -164,7 +164,7 @@ describe MockGCM do
       end
 
       it "should not affect unrelated requests" do
-        mock_gcm.error("not in valid data", "Unavailable")
+        mock_gcm.mock_error("not in valid data", "Unavailable")
 
         resp = http_client.post(mock_gcm_url, valid_data.to_json, headers)
         resp.should be_ok
@@ -175,12 +175,12 @@ describe MockGCM do
       end
     end
 
-    describe "#canonical_id" do
+    describe "#mock_canonical_id" do
 
       it "should return canonical registration_id for specified registration_ids in subsequent requests" do
         canonicals = { "8" => "27", "42" => "19" }
         canonicals.each_pair do |reg_id, can_id|
-          mock_gcm.canonical_id(reg_id, can_id)
+          mock_gcm.mock_canonical_id(reg_id, can_id)
         end
 
         2.times do
@@ -215,7 +215,7 @@ describe MockGCM do
       end
 
       it "should not affect unrelated requests" do
-        mock_gcm.canonical_id("not in valid data", "1")
+        mock_gcm.mock_canonical_id("not in valid data", "1")
 
         resp = http_client.post(mock_gcm_url, valid_data.to_json, headers)
         resp.should be_ok
@@ -227,12 +227,12 @@ describe MockGCM do
 
     end
 
-    describe "#fail_next_request" do
+    describe "#mock_next_request_failure" do
 
       5.times do
         errno = 500 + rand(100)
         it "should fail (#{errno}) if requested" do
-          mock_gcm.fail_next_request(errno)
+          mock_gcm.mock_next_request_failure(errno)
           resp = http_client.post(mock_gcm_url, valid_data.to_json, headers)
           resp.status.should == errno
           mock_gcm.received_messages.should be_empty
@@ -240,7 +240,7 @@ describe MockGCM do
       end
 
       it "should clear after one failure" do
-        mock_gcm.fail_next_request(500)
+        mock_gcm.mock_next_request_failure(500)
         resp = http_client.post(mock_gcm_url, valid_data.to_json, headers)
         resp.status.should == 500
         mock_gcm.received_messages.should be_empty
