@@ -61,13 +61,15 @@ module MockGCM
       @mutex.synchronize { @received_messages.dup }
     end
 
-    def add_received(reg_id, collapse_key, time_to_live, delay_while_idle, data)
+    def add_received(reg_id, collapse_key, time_to_live, delay_while_idle, data, dry_run, restrict_package_name)
       hsh = {
-        'registration_id'  => reg_id.freeze,
-        'collapse_key'     => collapse_key.freeze,
-        'time_to_live'     => time_to_live.freeze,
-        'delay_while_idle' => delay_while_idle.freeze,
-        'data'             => data.freeze,
+        'registration_id'       => reg_id.freeze,
+        'collapse_key'          => collapse_key.freeze,
+        'time_to_live'          => time_to_live.freeze,
+        'delay_while_idle'      => delay_while_idle.freeze,
+        'data'                  => data.freeze,
+        'dry_run'               => dry_run.freeze,
+        'restrict_package_name' => restrict_package_name.freeze
       }.freeze
       @mutex.synchronize { @received_messages << hsh }
     end
@@ -118,9 +120,11 @@ module MockGCM
       # Optional
       fail.call unless json.fetch("collapse_key", "").is_a?(String)
       fail.call unless json.fetch("time_to_live", 1).is_a?(Integer)
+      fail.call unless json.fetch("restrict_package_name", "").is_a?(String)
+      fail.call unless [true,false].include?(json.fetch("dry_run", false))
       fail.call unless [true,false].include?(json.fetch("delay_while_idle", false))
 
-      valid_fields = ["data", "registration_ids", "collapse_key", "time_to_live", "delay_while_idle"]
+      valid_fields = ["data", "registration_ids", "collapse_key", "time_to_live", "delay_while_idle", "dry_run", "restrict_package_name"]
       json.keys.each do |key|
         fail.call unless valid_fields.include?(key)
       end
@@ -151,7 +155,8 @@ module MockGCM
           success += 1
 
           add_received(reg_id, req_json['collapse_key'], req_json['time_to_live'],
-                       req_json['delay_while_idle'], req_json.fetch('data'))
+                       req_json['delay_while_idle'], req_json.fetch('data'),
+                       req_json['dry_run'], req_json['restrict_package_name'])
         end
       end
 

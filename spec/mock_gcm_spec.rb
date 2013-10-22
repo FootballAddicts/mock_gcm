@@ -14,10 +14,12 @@ describe MockGCM do
   }
   let(:valid_data) {
     {
-      "collapse_key"     => "score_update",
-      "time_to_live"     => 108,
-      "delay_while_idle" => true,
-      "data"             => {
+      "collapse_key"          => "score_update",
+      "time_to_live"          => 108,
+      "delay_while_idle"      => true,
+      "restrict_package_name" => "com.google.sender",
+      "dry_run"               => true,
+      "data"                  => {
         "score" => "4x8",
         "time" => "15:16.2342"
       },
@@ -29,7 +31,7 @@ describe MockGCM do
   after { mock_gcm.stop; sleep(0.01) until mock_gcm.stopped? }
 
   context 'correct data' do
-    optional_keys = ["collapse_key", "time_to_live", "delay_while_idle"]
+    optional_keys = ["collapse_key", "time_to_live", "delay_while_idle", "dry_run", "restrict_package_name"]
     ([:all, :no] + optional_keys).each do |included_key|
       it "should accept and report messages including #{included_key} optional key(s)" do
         unless included_key == :all
@@ -56,11 +58,13 @@ describe MockGCM do
         end
 
         expected_report = valid_data['registration_ids'].map do |registration_id|
-          { "collapse_key"     => valid_data["collapse_key"],
-            "time_to_live"     => valid_data["time_to_live"],
-            "delay_while_idle" => valid_data['delay_while_idle'],
-            "data"             => valid_data["data"],
-            "registration_id" => registration_id }
+          { "collapse_key"        => valid_data["collapse_key"],
+          "time_to_live"          => valid_data["time_to_live"],
+          "delay_while_idle"      => valid_data['delay_while_idle'],
+          "data"                  => valid_data["data"],
+          "restrict_package_name" => valid_data["restrict_package_name"],
+          "dry_run"               => valid_data["dry_run"],
+          "registration_id"       => registration_id }
         end
         mock_gcm.received_messages.should == expected_report
       end
@@ -293,7 +297,9 @@ describe MockGCM do
       ['registration_ids', [1]],
       ['time_to_live', "123"],
       ['collapse_key', 1],
-      ['delay_while_idle', "1"]
+      ['delay_while_idle', "1"],
+      ['dry_run', "1"],
+      ['restrict_package_name', 1]
     ].each do |key, value|
       it "should fail (400) when #{key} = #{value.inspect} (incorrect type)" do
         resp = http_client.post(mock_gcm_url, valid_data.tap { |d| d[key] = value }.to_json, headers)
