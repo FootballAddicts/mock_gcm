@@ -3,6 +3,16 @@ require 'json'
 require 'thread'
 require 'forwardable'
 
+# Workaround bug in stdlib
+HttpServer::Table.class_eval do
+  def initialize_with_dup(hash={})
+    initialize_without_dup(hash.dup)
+  end
+
+  alias_method :initialize_without_dup, :initialize
+  alias_method :initialize, :initialize_with_dup
+end
+
 module MockGCM
   class Server
     extend Forwardable
@@ -18,7 +28,7 @@ module MockGCM
       @server = HttpServer.new(self, port, DEFAULT_HOST, 1, File.open("/dev/null"), false, false)
 
       # Configurable error behaviour
-      @next_request_errno = nil
+      @next_request_failure = nil
       @canonicals        = {}
       @errors            = {}
     end
@@ -27,8 +37,11 @@ module MockGCM
 
     def_delegators :@server, :start, :stop, :stopped?
 
-    def mock_next_request_failure(errno)
-      @mutex.synchronize { @next_request_errno = Integer(errno) }
+    def mock_next_request_failure(errno, retry_after = nil)
+      @mutex.synchronize do
+        @next_request_failure = {:errno => Integer(errno)}
+        @next_request_failure[:retry_after] = retry_after if retry_after
+      end
     end
 
     def mock_canonical_id(reg_id, canonical_reg_id)
@@ -77,16 +90,17 @@ module MockGCM
     # Check stuff
 
     def check_fail_next_request(request, response, req_data)
-      next_request_errno = @mutex.synchronize do
-        @next_request_errno.tap { @next_request_errno = nil }
+      return true unless next_request_failure = @mutex.synchronize do
+        @next_request_failure.tap { @next_request_failure = nil }
       end
 
-      if next_request_errno
-        response.status = next_request_errno
-        false
-      else
-        true
+      response.status = next_request_failure[:errno]
+
+      next_request_failure[:retry_after].tap do |retry_after|
+        response.header['Retry-After'] = retry_after if retry_after
       end
+
+      false
     end
 
     def check_authorization_header(request, response, req_data)

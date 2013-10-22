@@ -253,14 +253,22 @@ describe MockGCM do
         end
       end
 
+      it "should forward the retry-after param if set" do
+        mock_gcm.mock_next_request_failure(500, 10)
+        resp = http_client.post(mock_gcm_url, valid_data.to_json, headers)
+        resp.headers['Retry-after'].to_i.should == 10
+      end
+
       it "should clear after one failure" do
-        mock_gcm.mock_next_request_failure(500)
+        mock_gcm.mock_next_request_failure(500, 10)
         resp = http_client.post(mock_gcm_url, valid_data.to_json, headers)
         resp.status.should == 500
+        resp.headers['Retry-after'].to_i.should == 10
         mock_gcm.received_messages.should be_empty
 
         resp = http_client.post(mock_gcm_url, valid_data.to_json, headers)
         resp.should be_ok
+        resp.headers.should_not include('Retry-after')
       end
 
     end
